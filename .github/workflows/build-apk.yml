@@ -6,30 +6,48 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout project
+        run: |
+          git clone --depth 1 --branch "$GITHUB_REF_NAME" \
+          "https://github.com/$GITHUB_REPOSITORY.git" .
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
+      - name: Check Java
+        run: java -version
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.10.2'
+      - name: Prepare Android SDK
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
+
+      - name: Install Gradle
+        run: |
+          curl -L \
+            https://services.gradle.org/distributions/gradle-8.10.2-bin.zip \
+            -o gradle.zip
+          unzip -q gradle.zip
 
       - name: Build APK
-        run: gradle :app:assembleDebug
+        run: |
+          ./gradle-8.10.2/bin/gradle :app:assembleDebug
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Crash-Wumpa-Rush-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+      - name: Publish APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk \
+            Crash-Wumpa-Rush.apk
+
+          gh release create "build-${GITHUB_RUN_NUMBER}" \
+            Crash-Wumpa-Rush.apk \
+            --title "Crash: Wumpa Rush — Build ${GITHUB_RUN_NUMBER}" \
+            --notes "Automatic Android APK build."
