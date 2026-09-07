@@ -1,0 +1,2 @@
+# WumpaRushAI
+test project ai
